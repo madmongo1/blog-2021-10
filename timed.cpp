@@ -41,14 +41,19 @@ struct timed_initiation
         // first try the associated executor of the handler. If that doesn't
         // exist, take the associated executor of the underlying async operation's handler
         // If that doesn't exist, use the default executor (system executor currently)
-        auto ex = asio::get_associated_executor(handler,
-                                                asio::get_associated_executor(initiation));
+        asio::associated_executor_t<CompletionHandler,
+                                    asio::associated_executor_t<Initiation>>
+          ex = asio::get_associated_executor(handler,
+                                             asio::get_associated_executor(initiation));
 
         // build a timer object and own it via a shared_ptr. This is because its
         // lifetime is shared between two asynchronous chains. Use the handler's
         // allocator in order to take advantage of the Asio recycling allocator.
-        auto alloc = asio::get_associated_allocator(handler);
-        auto timer = std::allocate_shared<asio::steady_timer>(alloc, ex, timeout);
+        asio::associated_allocator_t<CompletionHandler> alloc =
+            asio::get_associated_allocator(handler);
+
+        std::shared_ptr<asio::steady_timer> timer =
+            std::allocate_shared<asio::steady_timer>(alloc, ex, timeout);
 
         // launch a parallel group of asynchronous operations - one for the timer
         // wait and one for the underlying asynchronous operation (i.e. async_read)
