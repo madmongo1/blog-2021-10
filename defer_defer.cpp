@@ -83,7 +83,10 @@ reader(asio::ip::tcp::socket sock)
   }
 }
 
-asio::awaitable<std::tuple<asio::ip::tcp::socket, asio::ip::tcp::socket>>
+asio::awaitable<
+    std::tuple<
+        asio::ip::tcp::socket,
+        asio::ip::tcp::socket>>
 local_socket_pair()
 {
   namespace this_coro = asio::this_coro;
@@ -94,10 +97,11 @@ local_socket_pair()
     asio::ip::tcp::acceptor (
           co_await this_coro::executor,
           asio::ip::tcp::endpoint(asio::ip::address_v4::loopback(), 0));
-  acceptor.listen();
-  asio::ip::tcp::socket client { co_await this_coro::executor };
 
-  auto server = asio::ip::tcp::socket(co_await this_coro::executor );
+  acceptor.listen();
+
+  auto client = asio::ip::tcp::socket(co_await this_coro::executor);
+  auto server = asio::ip::tcp::socket(co_await this_coro::executor);
   co_await (
       acceptor.async_accept(server, use_awaitable) &&
       client.async_connect(acceptor.local_endpoint(), use_awaitable)
