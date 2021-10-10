@@ -38,18 +38,17 @@ struct timed_initiation
         using asio::experimental::make_parallel_group;
 
         // locate the correct executor associated with the underling operation
-        // first type the associated executor of the handler. If that doesn't
+        // first try the associated executor of the handler. If that doesn't
         // exist, take the associated executor of the underlying async operation's handler
         // If that doesn't exist, use the default executor (system executor currently)
         auto ex = asio::get_associated_executor(handler,
                                                 asio::get_associated_executor(initiation));
 
         // build a timer object and own it via a shared_ptr. This is because its
-        // lifetime is shared between two asynchronous chains.
-        // Note that as an extra optimisation we could have allocated it using
-        // the associated allocator of the handler, but this is left out for
-        // simplicity.
-        auto timer = std::make_shared<asio::steady_timer>(ex, timeout);
+        // lifetime is shared between two asynchronous chains. Use the handler's
+        // allocator in order to take advantage of the Asio recycling allocator.
+        auto alloc = asio::get_associated_allocator(handler);
+        auto timer = std::allocate_shared<asio::steady_timer>(alloc, ex, timeout);
 
         // launch a parallel group of asynchronous operations - one for the timer
         // wait and one for the underlying asynchronous operation (i.e. async_read)
@@ -91,6 +90,8 @@ struct timed_initiation
                     auto... underlying_op_results // e.g. error_code, size_t
                     ) mutable
                 {
+                    // release all memory prior to invoking the final handler
+                    timer.reset();
                     // finally, invoke the handler with the results of the
                     // underlying operation
                     std::move(handler)(std::move(underlying_op_results)...);
