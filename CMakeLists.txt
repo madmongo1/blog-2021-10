@@ -18,11 +18,12 @@ find_package(Threads REQUIRED)
 
 add_library(asio_asio INTERFACE)
 target_include_directories(asio_asio INTERFACE "${asio_SOURCE_DIR}/asio/include")
+target_link_libraries(asio_asio INTERFACE Threads::Threads)
 add_library(asio::asio ALIAS asio_asio)
 
 file(GLOB src_files CONFIGURE_DEPENDS "*.cpp")
 foreach(src IN LISTS src_files)
   get_filename_component(target_name "${src}" NAME_WLE)
   add_executable("${target_name}" "${src}")
-  target_link_libraries("${target_name}" PUBLIC asio::asio Threads::Threads)
+  target_link_libraries("${target_name}" PUBLIC asio::asio)
 endforeach()
