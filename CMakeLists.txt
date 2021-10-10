@@ -1,8 +1,28 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(blog-oct-2021)
+set(CMAKE_CXX_STANDARD 20)
 
-find_package(asio REQUIRED)
-add_executable(scratch scratch.cpp)
-target_link_libraries(scratch PUBLIC asio::asio)
-set_property(TARGET scratch PROPERTY CXX_VERSION 20)
+include(FetchContent)
+FetchContent_Declare(asio
+        GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+        GIT_TAG master
+        GIT_SHALLOW Yes)
+
+FetchContent_GetProperties(asio)
+if(NOT asio_POPULATED)
+  FetchContent_Populate(asio)
+endif()
+
+find_package(Threads REQUIRED)
+
+add_library(asio_asio INTERFACE)
+target_include_directories(asio_asio INTERFACE "${asio_SOURCE_DIR}/asio/include")
+add_library(asio::asio ALIAS asio_asio)
+
+file(GLOB src_files CONFIGURE_DEPENDS "*.cpp")
+foreach(src IN LISTS src_files)
+  get_filename_component(target_name "${src}" NAME_WLE)
+  add_executable("${target_name}" "${src}")
+  target_link_libraries("${target_name}" PUBLIC asio::asio Threads::Threads)
+endforeach()
