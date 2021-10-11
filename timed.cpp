@@ -11,6 +11,9 @@
 #include <asio/experimental/deferred.hpp>
 #include <asio/experimental/as_tuple.hpp>
 #include <asio/experimental/parallel_group.hpp>
+#ifdef WIN32
+#include <asio/experimental/awaitable_operators.hpp>
+#endif
 #include <iostream>
 #include <iomanip>
 
@@ -170,14 +173,65 @@ left_view(std::string const& s, std::size_t n)
   return { s.data(), n };
 }
 
+asio::awaitable<
+        std::tuple<
+                asio::ip::tcp::socket,
+                asio::ip::tcp::socket>>
+local_socket_pair()
+{
+    namespace this_coro = asio::this_coro;
+    using namespace asio::experimental::awaitable_operators;
+    using asio::use_awaitable;
+
+    auto acceptor =
+            asio::ip::tcp::acceptor (
+                    co_await this_coro::executor,
+                    asio::ip::tcp::endpoint(asio::ip::address_v4::loopback(), 0));
+
+    acceptor.listen();
+
+    auto client = asio::ip::tcp::socket(co_await this_coro::executor);
+    auto server = asio::ip::tcp::socket(co_await this_coro::executor);
+    co_await (
+            acceptor.async_accept(server, use_awaitable) &&
+            client.async_connect(acceptor.local_endpoint(), use_awaitable)
+    );
+
+    co_return std::make_tuple(std::move(client), std::move(server));
+}
+
+asio::awaitable<void>
+send_test_data(asio::ip::tcp::socket sock_)
+{
+    using namespace std::literals;
+    auto sock = asio::use_awaitable.as_default_on(std::move(sock_));
+    auto timer = asio::use_awaitable.as_default_on(asio::steady_timer { sock.get_executor(), 1s });
+
+    // wait for 1 second before writing to the server
+    co_await timer.async_wait();
+    auto message = "Hello, World! - next message is in 6 seconds.\n"s;
+    co_await asio::async_write(sock, asio::buffer(message));
+
+    // now wait 6 seconds so the second read times out
+    timer.expires_after(6s);
+    co_await timer.async_wait();
+
+    message = "You shouldn't see this.";
+    co_await asio::async_write(sock, asio::buffer(message));
+}
+
 asio::awaitable<void> run()
 {
     using namespace asio;
     using namespace std::literals;
     using experimental::deferred;
     using experimental::as_tuple;
-
+#ifdef WIN32
+    auto [client, in] = co_await local_socket_pair();
+    asio::co_spawn(co_await this_coro::executor, send_test_data(std::move(client)), asio::detached);
+#else
     posix::stream_descriptor in(co_await this_coro::executor, ::dup(STDIN_FILENO));
+#endif
     std::string line;
     std::cout << "using the token: ";
     std::cout.flush();

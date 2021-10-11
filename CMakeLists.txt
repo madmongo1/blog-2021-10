@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(blog-oct-2021)
 set(CMAKE_CXX_STANDARD 20)
-
+if (MSVC)
+  add_compile_options("/await:strict")
+endif()
 include(FetchContent)
 FetchContent_Declare(asio
         GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
